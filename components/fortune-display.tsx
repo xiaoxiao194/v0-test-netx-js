@@ -54,21 +54,188 @@ export function FortuneDisplay({ zodiac }: FortuneDisplayProps) {
   }, [zodiac])
 
   const handleGenerateImage = async () => {
-    if (!fortuneRef.current) return
+    if (!fortune) return
 
     try {
-      const html2canvas = (await import("html2canvas")).default
-      const canvas = await html2canvas(fortuneRef.current, {
-        backgroundColor: "#1a1625",
-        scale: 2,
+      const canvas = document.createElement("canvas")
+      const ctx = canvas.getContext("2d")
+      if (!ctx) return
+
+      // 设置画布尺寸
+      canvas.width = 1200
+      canvas.height = 1600
+
+      // 绘制背景
+      const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height)
+      gradient.addColorStop(0, "#1a1625")
+      gradient.addColorStop(0.5, "#2d1b4e")
+      gradient.addColorStop(1, "#1a1625")
+      ctx.fillStyle = gradient
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+      // 绘制装饰星星
+      ctx.fillStyle = "rgba(168, 85, 247, 0.3)"
+      for (let i = 0; i < 50; i++) {
+        const x = Math.random() * canvas.width
+        const y = Math.random() * canvas.height
+        const size = Math.random() * 3 + 1
+        ctx.beginPath()
+        ctx.arc(x, y, size, 0, Math.PI * 2)
+        ctx.fill()
+      }
+
+      let yOffset = 80
+
+      // 绘制标题
+      ctx.font = "bold 64px sans-serif"
+      ctx.textAlign = "center"
+      const titleGradient = ctx.createLinearGradient(0, yOffset, canvas.width, yOffset)
+      titleGradient.addColorStop(0, "#a855f7")
+      titleGradient.addColorStop(0.5, "#fbbf24")
+      titleGradient.addColorStop(1, "#a855f7")
+      ctx.fillStyle = titleGradient
+      ctx.fillText(`${zodiac} 今日运势`, canvas.width / 2, yOffset)
+
+      // 绘制日期
+      yOffset += 60
+      ctx.font = "24px sans-serif"
+      ctx.fillStyle = "#a1a1aa"
+      ctx.fillText(
+        new Date().toLocaleDateString("zh-CN", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+          weekday: "long",
+        }),
+        canvas.width / 2,
+        yOffset,
+      )
+
+      // 绘制综合运势卡片
+      yOffset += 80
+      ctx.fillStyle = "rgba(168, 85, 247, 0.2)"
+      ctx.fillRect(60, yOffset, canvas.width - 120, 200)
+      ctx.strokeStyle = "rgba(168, 85, 247, 0.5)"
+      ctx.lineWidth = 2
+      ctx.strokeRect(60, yOffset, canvas.width - 120, 200)
+
+      ctx.font = "bold 32px sans-serif"
+      ctx.fillStyle = "#fafafa"
+      ctx.textAlign = "left"
+      ctx.fillText("综合运势", 100, yOffset + 50)
+
+      ctx.font = "24px sans-serif"
+      ctx.fillStyle = "#e4e4e7"
+      const maxWidth = canvas.width - 200
+      const lines = wrapText(ctx, fortune.overall, maxWidth)
+      lines.forEach((line, index) => {
+        ctx.fillText(line, 100, yOffset + 100 + index * 35)
       })
 
+      // 绘制三个运势指标
+      yOffset += 280
+      const metrics = [
+        { icon: "♥", label: "爱情运势", score: fortune.love.score, text: fortune.love.text, color: "#a855f7" },
+        { icon: "💼", label: "事业运势", score: fortune.career.score, text: fortune.career.text, color: "#a855f7" },
+        { icon: "$", label: "财运", score: fortune.wealth.score, text: fortune.wealth.text, color: "#fbbf24" },
+      ]
+
+      const cardWidth = 340
+      const cardHeight = 240
+      const gap = 30
+      const startX = (canvas.width - cardWidth * 3 - gap * 2) / 2
+
+      metrics.forEach((metric, index) => {
+        const x = startX + index * (cardWidth + gap)
+        const y = yOffset
+
+        // 绘制卡片背景
+        ctx.fillStyle = "rgba(39, 39, 42, 0.8)"
+        ctx.fillRect(x, y, cardWidth, cardHeight)
+        ctx.strokeStyle = "rgba(63, 63, 70, 1)"
+        ctx.lineWidth = 1
+        ctx.strokeRect(x, y, cardWidth, cardHeight)
+
+        // 绘制图标和标题
+        ctx.font = "32px sans-serif"
+        ctx.fillStyle = metric.color
+        ctx.textAlign = "left"
+        ctx.fillText(metric.icon, x + 20, y + 50)
+
+        ctx.font = "bold 24px sans-serif"
+        ctx.fillStyle = "#fafafa"
+        ctx.fillText(metric.label, x + 70, y + 50)
+
+        // 绘制进度条
+        const barY = y + 80
+        const barWidth = cardWidth - 100
+        ctx.fillStyle = "rgba(63, 63, 70, 1)"
+        ctx.fillRect(x + 20, barY, barWidth, 12)
+
+        const progressGradient = ctx.createLinearGradient(x + 20, barY, x + 20 + barWidth, barY)
+        progressGradient.addColorStop(0, metric.color)
+        progressGradient.addColorStop(1, "#fbbf24")
+        ctx.fillStyle = progressGradient
+        ctx.fillRect(x + 20, barY, (barWidth * metric.score) / 100, 12)
+
+        // 绘制分数
+        ctx.font = "bold 28px sans-serif"
+        ctx.fillStyle = metric.color
+        ctx.textAlign = "right"
+        ctx.fillText(metric.score.toString(), x + cardWidth - 20, barY + 10)
+
+        // 绘制描述文本
+        ctx.font = "18px sans-serif"
+        ctx.fillStyle = "#a1a1aa"
+        ctx.textAlign = "left"
+        const textLines = wrapText(ctx, metric.text, cardWidth - 40)
+        textLines.slice(0, 3).forEach((line, lineIndex) => {
+          ctx.fillText(line, x + 20, barY + 50 + lineIndex * 28)
+        })
+      })
+
+      // 绘制幸运元素
+      yOffset += cardHeight + 80
+      ctx.fillStyle = "rgba(39, 39, 42, 0.8)"
+      ctx.fillRect(60, yOffset, canvas.width - 120, 200)
+      ctx.strokeStyle = "rgba(63, 63, 70, 1)"
+      ctx.lineWidth = 1
+      ctx.strokeRect(60, yOffset, canvas.width - 120, 200)
+
+      ctx.font = "bold 28px sans-serif"
+      ctx.fillStyle = "#fafafa"
+      ctx.textAlign = "left"
+      ctx.fillText("幸运元素", 100, yOffset + 50)
+
+      const luckyItems = [
+        { label: "幸运颜色", value: fortune.lucky.color },
+        { label: "幸运数字", value: fortune.lucky.number.toString() },
+        { label: "幸运方位", value: fortune.lucky.direction },
+      ]
+
+      const itemWidth = (canvas.width - 200) / 3
+      luckyItems.forEach((item, index) => {
+        const x = 100 + index * itemWidth
+        const y = yOffset + 100
+
+        ctx.font = "20px sans-serif"
+        ctx.fillStyle = "#a1a1aa"
+        ctx.textAlign = "center"
+        ctx.fillText(item.label, x + itemWidth / 2, y)
+
+        ctx.font = "bold 32px sans-serif"
+        ctx.fillStyle = "#fbbf24"
+        ctx.fillText(item.value, x + itemWidth / 2, y + 50)
+      })
+
+      // 下载图片
       const link = document.createElement("a")
       link.download = `${zodiac}-运势-${new Date().toLocaleDateString()}.png`
-      link.href = canvas.toDataURL()
+      link.href = canvas.toDataURL("image/png")
       link.click()
     } catch (error) {
       console.error("[v0] 生成签图失败:", error)
+      alert("生成签图失败，请稍后重试")
     }
   }
 
@@ -157,7 +324,11 @@ export function FortuneDisplay({ zodiac }: FortuneDisplayProps) {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
-      <div ref={fortuneRef} className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <div
+        ref={fortuneRef}
+        data-fortune-content
+        className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700"
+      >
         <div className="text-center space-y-4 relative">
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/10 to-transparent blur-xl" />
           <h3 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent relative">
@@ -326,4 +497,29 @@ export function FortuneDisplay({ zodiac }: FortuneDisplayProps) {
       </div>
     </div>
   )
+}
+
+// 文本换行辅助函数
+const wrapText = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] => {
+  const words = text.split("")
+  const lines: string[] = []
+  let currentLine = ""
+
+  for (const char of words) {
+    const testLine = currentLine + char
+    const metrics = ctx.measureText(testLine)
+
+    if (metrics.width > maxWidth && currentLine.length > 0) {
+      lines.push(currentLine)
+      currentLine = char
+    } else {
+      currentLine = testLine
+    }
+  }
+
+  if (currentLine.length > 0) {
+    lines.push(currentLine)
+  }
+
+  return lines
 }
